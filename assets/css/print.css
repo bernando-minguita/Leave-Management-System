@@ -1,0 +1,63 @@
+/* ------------------------------------------------------------------ print */
+@media print {
+    body {
+        background: #fff !important;
+        font-size: 11pt;
+    }
+
+    .app-sidebar,
+    .app-topbar,
+    .no-print,
+    .btn,
+    .pager,
+    .filter-card,
+    .offcanvas,
+    .toast-container,
+    .dropdown-menu {
+        display: none !important;
+    }
+
+    .app-content {
+        padding: 0 !important;
+    }
+
+    .app-shell {
+        display: block;
+    }
+
+    .card {
+        border: 1px solid #dee2e6 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+    }
+
+    .card-header {
+        background: #f1f3f5 !important;
+    }
+
+    .table {
+        font-size: 10pt;
+    }
+
+    .table thead th {
+        background: #f1f3f5 !important;
+        color: #000 !important;
+    }
+
+    .table tbody tr {
+        page-break-inside: avoid;
+    }
+
+    .badge {
+        border: 1px solid #adb5bd;
+    }
+
+    a {
+        color: #000 !important;
+        text-decoration: none !important;
+    }
+
+    .d-print-block {
+        display: block !important;
+    }
+}

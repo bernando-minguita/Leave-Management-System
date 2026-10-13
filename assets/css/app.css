@@ -1,0 +1,769 @@
+/* ===========================================================================
+ * LMS application styles
+ *
+ * Sits on top of Bootstrap 5.3 and re-skins its tokens for a restrained
+ * logistics / operations look: deep navy sidebar, cool neutral surfaces,
+ * amber for warnings, red reserved for overdue.
+ * ======================================================================== */
+
+:root {
+    --fl-sidebar-width: 248px;
+    --fl-sidebar-bg: #16233a;
+    --fl-sidebar-bg-2: #1d2f4d;
+    --fl-sidebar-text: #b9c6dd;
+    --fl-sidebar-active: #2563eb;
+    --fl-topbar-height: 56px;
+    --fl-surface: #ffffff;
+    --fl-page-bg: #f2f5f9;
+    --fl-border: #e3e8ef;
+    --fl-primary: #1e4b7a;
+    --fl-primary-rgb: 30, 75, 122;
+}
+
+html, body {
+    height: 100%;
+}
+
+body {
+    background-color: var(--fl-page-bg);
+    color: #1f2937;
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    font-size: .925rem;
+    -webkit-font-smoothing: antialiased;
+}
+
+a { text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------- shell layout */
+
+.app-shell {
+    display: flex;
+    min-height: 100vh;
+}
+
+.app-sidebar {
+    width: var(--fl-sidebar-width);
+    flex: 0 0 var(--fl-sidebar-width);
+    background: linear-gradient(180deg, var(--fl-sidebar-bg) 0%, var(--fl-sidebar-bg-2) 100%);
+    color: var(--fl-sidebar-text);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding: 1rem .95rem;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+
+.brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 1.05rem;
+    flex: 0 0 34px;
+}
+
+.brand-copy {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+    min-width: 0;
+}
+
+.brand-copy strong { color: #fff; font-size: .98rem; }
+.brand-copy small { color: #8fa3c4; font-size: .7rem; }
+.sidebar-close { margin-left: auto; color: #cbd5e1; }
+
+.sidebar-nav {
+    flex: 1 1 auto;
+    padding: .75rem 0 1rem;
+}
+
+.sidebar-heading {
+    padding: .85rem 1.1rem .35rem;
+    font-size: .66rem;
+    font-weight: 700;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: #7d8fb0;
+}
+
+.sidebar-menu {
+    list-style: none;
+    margin: 0;
+    padding: 0 .55rem;
+}
+
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .47rem .65rem;
+    margin-bottom: 2px;
+    border-radius: 7px;
+    color: var(--fl-sidebar-text);
+    font-size: .87rem;
+    transition: background-color .12s ease, color .12s ease;
+}
+
+.sidebar-link i {
+    font-size: .95rem;
+    opacity: .85;
+    width: 1.1rem;
+    text-align: center;
+}
+
+.sidebar-link:hover {
+    background: rgba(255, 255, 255, .07);
+    color: #fff;
+    text-decoration: none;
+}
+
+.sidebar-link.is-active {
+    background: var(--fl-sidebar-active);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(37, 99, 235, .45);
+}
+
+.sidebar-link.is-active i { opacity: 1; }
+
+.sidebar-footer {
+    padding: .75rem 1rem;
+    border-top: 1px solid rgba(255, 255, 255, .08);
+    color: #8fa3c4;
+    font-size: .76rem;
+}
+
+.sidebar-drawer .sidebar-link { color: #334155; }
+.sidebar-drawer .sidebar-link.is-active { background: var(--fl-sidebar-active); color: #fff; }
+.sidebar-drawer .sidebar-heading { color: #64748b; }
+
+.app-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --------------------------------------------------------------- topbar */
+
+.app-topbar {
+    height: var(--fl-topbar-height);
+    flex: 0 0 var(--fl-topbar-height);
+    background: var(--fl-surface);
+    border-bottom: 1px solid var(--fl-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 1.1rem;
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+}
+
+.topbar-start, .topbar-end {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-width: 0;
+}
+
+.topbar-title h1 {
+    font-size: 1.02rem;
+    font-weight: 650;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-menu { display: inline-flex; align-items: center; gap: .5rem; }
+
+.user-copy {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+    text-align: left;
+}
+
+.user-copy strong { font-size: .82rem; }
+.user-copy small { font-size: .68rem; color: #64748b; }
+
+.app-content {
+    flex: 1 1 auto;
+    padding: 1.1rem 1.15rem 2.2rem;
+    min-width: 0;
+}
+
+/* ----------------------------------------------------------------- cards */
+
+.card {
+    border-radius: .5rem;
+    border-color: var(--fl-border);
+    background-color: var(--fl-surface);
+}
+
+.card-header {
+    background: var(--fl-surface);
+    padding: .7rem 1rem;
+    font-weight: 600;
+}
+
+.card-header:first-child { border-radius: .5rem .5rem 0 0; }
+
+.page-head { margin-bottom: 1rem; }
+.page-head h2 { font-weight: 650; letter-spacing: -.01em; }
+
+.kpi-card { border-radius: .55rem; overflow: hidden; }
+.kpi-card .card-body { padding: .95rem 1rem; }
+
+.kpi-label {
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: .3rem;
+}
+
+.kpi-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.05;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+}
+
+.kpi-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    font-size: 1.05rem;
+    flex: 0 0 38px;
+}
+
+.kpi-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .5rem;
+    margin-top: .55rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--fl-border);
+    font-size: .76rem;
+}
+
+/* Slim meter used by the headline "On Leave vs Total Drivers" strip. */
+.kpi-progress {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--fl-border);
+}
+.kpi-progress .progress-bar {
+    border-radius: 4px;
+}
+
+/* ------------------------------------------- multi-select checkbox filter */
+.check-filter .dropdown-menu {
+    min-width: 12rem;
+    max-height: 16rem;
+    overflow-y: auto;
+    padding: .4rem;
+}
+
+.check-filter-item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin: 0;
+    padding: .3rem .5rem;
+    border-radius: .35rem;
+    font-size: .85rem;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.check-filter-item:hover {
+    background: rgba(0, 0, 0, .06);
+}
+
+.check-filter-item input {
+    flex: 0 0 auto;
+}
+
+/* --------------------------------------------------------- arrival strip */
+
+.arrival-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .75rem;
+}
+
+.arrival-cell {
+    padding: .55rem .7rem;
+    border-radius: .45rem;
+    background: #f8fafc;
+    border: 1px solid var(--fl-border);
+    text-align: center;
+}
+
+.arrival-label {
+    font-size: .66rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+    color: #64748b;
+}
+
+.arrival-date {
+    font-size: .88rem;
+    font-weight: 650;
+    color: #0f172a;
+    margin-top: .1rem;
+}
+
+.arrival-rule {
+    height: 2px;
+    border-radius: 2px;
+    background: #cbd5e1;
+    margin: .4rem auto;
+    width: 70%;
+}
+
+.arrival-count { font-size: .8rem; color: #475569; }
+.arrival-count strong { font-size: 1.15rem; color: #0f172a; }
+
+.arrival-cell.tone-primary { border-top: 3px solid #0d6efd; }
+.arrival-cell.tone-info    { border-top: 3px solid #0dcaf0; }
+.arrival-cell.tone-success { border-top: 3px solid #198754; }
+.arrival-cell.tone-danger  { border-top: 3px solid #dc3545; background: #fef2f2; }
+
+/* -------------------------------------------------------------- tables */
+
+.table { font-size: .85rem; }
+
+.table thead th {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #475569;
+    white-space: nowrap;
+    background: #f8fafc;
+}
+
+.table-responsive {
+    border-bottom-left-radius: .5rem;
+    border-bottom-right-radius: .5rem;
+}
+
+/* The whole <th> is the click target: table.js binds its toggle to the cell
+   itself (wireHeaders -> th.addEventListener), not to the label. sort_header()
+   gets the pointer for free because it wraps the label in a real anchor, but
+   sort_header_client() - the only helper Expected Returns can use - renders no
+   anchor, because that controller does not read ?sort= back and a dead link
+   would be worse than none. Those eight headers therefore showed an arrow
+   while staying clickable, and only on that screen. */
+th.sortable { cursor: pointer; }
+
+.table th.sortable a { color: inherit; }
+
+.table th.sortable.is-sorted a {
+    color: var(--fl-primary);
+    font-weight: 700;
+}
+
+.data-table tbody td { vertical-align: middle; }
+
+/* A floor for grids whose row actions open downwards.
+   .table-responsive scrolls horizontally, which also makes it the clipping
+   box for anything overflowing vertically - so a dropdown menu opening from
+   the last row of a one- or two-row table was cut off at the container edge.
+   The floor reserves that room; once the table is taller than the minimum it
+   has no effect. */
+.table-grid { min-height: 300px; }
+
+.status-badge {
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    padding: .38em .7em;
+}
+
+.overdue-card { border: 1px solid #f5c2c7 !important; }
+.overdue-card .card-header { background: #fff5f5; }
+
+/* --------------------------------------------------------------- forms */
+
+.form-label {
+    font-size: .79rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: .28rem;
+}
+
+.form-control, .form-select { font-size: .875rem; }
+.form-text { font-size: .74rem; }
+
+.detail-list dt {
+    font-size: .74rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-top: .55rem;
+}
+
+.detail-list dt:first-child { margin-top: 0; }
+
+.detail-list dd {
+    font-size: .88rem;
+    margin-bottom: 0;
+    color: #111827;
+}
+
+.filter-card .card-body { padding: .8rem 1rem; }
+
+/* ----------------------------------------------------------- empty state */
+
+.empty-state { padding: 1.75rem 1rem; }
+
+/* ------------------------------------------------------------- calendar */
+
+.calendar-legend { padding: .35rem 0; }
+
+#leaveCalendar { min-height: 620px; }
+
+.fc {
+    font-family: inherit;
+    font-size: .875rem;
+}
+
+.fc .fc-toolbar-title {
+    font-size: 1.05rem;
+    font-weight: 650;
+}
+
+.fc .fc-button-primary {
+    background-color: var(--fl-primary);
+    border-color: var(--fl-primary);
+}
+
+.fc .fc-button-primary:not(:disabled):active,
+.fc .fc-button-primary:not(:disabled).fc-button-active {
+    background-color: #16385a;
+    border-color: #16385a;
+}
+
+.fc .fc-daygrid-event {
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: .74rem;
+    cursor: pointer;
+}
+
+.fc .fc-col-header-cell-cushion {
+    color: #475569;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.fc .fc-day-today {
+    background-color: #fff8e6 !important;
+}
+
+/* --------------------------------------------------------------- charts */
+
+.chart-box {
+    position: relative;
+    min-height: 240px;
+}
+
+/* ----------------------------------------------------------- auth pages */
+
+.auth-body {
+    background: linear-gradient(160deg, #16233a 0%, #1d3a63 55%, #24507f 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.auth-wrap {
+    width: 100%;
+    max-width: 420px;
+}
+
+.auth-brand {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    color: #fff;
+    margin-bottom: 1rem;
+}
+
+.auth-brand strong { display: block; font-size: 1.1rem; }
+.auth-brand small { color: #a9bcdb; font-size: .8rem; }
+
+.auth-brand .brand-mark {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    font-size: 1.25rem;
+}
+
+.auth-card { border-radius: .75rem; }
+
+.auth-foot {
+    text-align: center;
+    margin-top: 1rem;
+    color: #a9bcdb;
+}
+
+.error-wrap { max-width: 520px; }
+.error-card { border-radius: .75rem; }
+
+.error-code {
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--fl-primary);
+    opacity: .3;
+    line-height: 1;
+    margin-bottom: .25rem;
+}
+
+/* ------------------------------------------------------------- utilities */
+
+.pager { font-size: .82rem; }
+
+.link-offset-2:hover { text-decoration: underline !important; }
+
+.current-leave-banner { border-left: 4px solid #1e4b7a; }
+
+/* ------------------------------------------------------------ responsive */
+
+@media (max-width: 991.98px) {
+    .app-sidebar { display: none; }
+
+    .app-content { padding: .9rem .75rem 2rem; }
+
+    .arrival-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 575.98px) {
+    .kpi-value { font-size: 1.5rem; }
+
+    .topbar-title .small { display: none; }
+
+    .user-copy { display: none; }
+
+    .arrival-strip { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (min-width: 992px) {
+    .sidebar-drawer { display: none !important; }
+}
+
+/* Dashboard summary tables: a month row is a drill-down control. */
+.summary-drill-row {
+    cursor: pointer;
+}
+
+.summary-drill-row:hover > td {
+    background-color: rgba(37, 99, 235, .07);
+}
+
+.summary-drill-row:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+}
+
+/* ---------------------------------------------------- Driver Dashboard --- */
+
+/* Both charts live in a box with a definite height. Chart.js is told
+   maintainAspectRatio: false, so it fills the box instead of deriving its
+   height from the canvas attributes - which, on a card ~830px wide, produced
+   a chart ~640px tall that ran off the bottom of the screen. */
+.dd-chart-box {
+    position: relative;
+    height: 300px;
+}
+
+.dd-chart-box canvas {
+    max-height: 100%;
+}
+
+/* Phones: a shorter box keeps both charts above the fold. */
+@media (max-width: 575.98px) {
+    .dd-chart-box {
+        height: 230px;
+    }
+}
+
+/* The five KPI cards are filters, not links: clicking one narrows the list
+   below and the card shows which filter is in force. */
+.dd-kpi {
+    cursor: pointer;
+    text-align: left;
+    transition: box-shadow .15s ease, border-color .15s ease;
+}
+
+.dd-kpi:hover {
+    box-shadow: 0 .25rem .75rem rgba(15, 23, 42, .12) !important;
+}
+
+.dd-kpi:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+}
+
+.dd-kpi.is-active {
+    border-color: var(--fl-primary, #2563eb) !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .28) !important;
+}
+
+/* "420 | 92.5%" - the share reads as supporting text, never as the headline. */
+.dd-kpi-pct {
+    font-size: .5em;
+    font-weight: 600;
+    color: #64748b;
+    vertical-align: middle;
+    margin-left: .35rem;
+}
+
+/* Colour key in the branch summary; the number carries the meaning. */
+.dd-dot {
+    display: inline-block;
+    width: .55rem;
+    height: .55rem;
+    border-radius: 50%;
+    margin-right: .35rem;
+    vertical-align: baseline;
+    opacity: .85;
+}
+
+.dd-empty-icon {
+    font-size: 2rem;
+    color: #94a3b8;
+    opacity: .6;
+}
+
+/* Sortable headers on both tables. */
+.dd-sort {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.dd-sort:hover {
+    background-color: rgba(37, 99, 235, .07);
+}
+
+.dd-sort:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+}
+
+.dd-sort-icon {
+    font-size: .7em;
+    opacity: .45;
+}
+
+/* A driver row opens the read-only details panel. */
+.dd-row {
+    cursor: pointer;
+}
+
+.dd-row:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+}
+
+/* A branch row filters the list to that branch. */
+.dd-branch-row {
+    cursor: pointer;
+}
+
+.dd-branch-row:hover > th,
+.dd-branch-row:hover > td {
+    background-color: rgba(37, 99, 235, .07);
+}
+
+.dd-branch-row:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+}
+
+/* Remarks is free text: keep the row one line tall on a laptop. */
+.dd-remarks {
+    max-width: 22rem;
+    font-size: .85rem;
+    color: #64748b;
+}
+
+/* ================================================================ ======
+ * Column preferences - show/hide and resize (assets/js/table-prefs.js)
+ * ======================================================================== */
+
+/* The Columns control lives in the page header, on the same row as the
+   Print/Excel buttons (see Prefs.anchorFor). Inside .btn-toolbar it is a
+   flex item, so JS pins it with flex: 0 0 auto. On a screen with no header
+   toolbar it falls back to its old home above the grid, where the mb-2
+   spacing comes from markup and justify-content keeps it right-aligned. */
+.dd-prefs-bar {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* The drag strip on the right edge of a resizable header. It has to be a
+   real 7px hit area - a 1px border makes the drag feel broken. */
+.dd-resize {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 7px;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    cursor: col-resize;
+    z-index: 2;
+    background-color: transparent;
+}
+
+.dd-resize:hover,
+.dd-resize:active {
+    background-color: rgba(37, 99, 235, .45);
+}
+
+/* While a column is being dragged the page must not select text or the
+   drag will stutter over the first row of cells it passes. */
+body.dd-resizing,
+body.dd-resizing * {
+    cursor: col-resize !important;
+    user-select: none !important;
+}
+
+/* A hidden column keeps its header out of the sort affordance too. */
+.table th[style*="display: none"] {
+    pointer-events: none;
+}
+
+

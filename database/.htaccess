@@ -1,0 +1,2 @@
+# Schema, seed data and install tooling are never served over HTTP.
+Require all denied

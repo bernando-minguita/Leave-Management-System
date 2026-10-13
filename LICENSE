@@ -1,0 +1,16 @@
+Copyright (c) 2026 Bernando Jr Minguita. All rights reserved.
+
+This software - the LMS source, its documentation and all associated files -
+is proprietary and confidential. It is furnished solely for use by the
+operating organisation and its authorised personnel on the single centrally
+operated instance it was built for.
+
+No licence is granted to any third party. Except with the prior written
+permission of the copyright holder, you may not copy, modify, merge,
+publish, distribute, sublicense, or sell copies of this software, nor
+permit or assist any third party to do so.
+
+The third-party libraries bundled under assets/vendor/ remain under their
+own respective licences (see README.md, "Licence and credits").
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.

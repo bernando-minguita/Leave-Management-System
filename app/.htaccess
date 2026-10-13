@@ -1,0 +1,2 @@
+# Application internals are not served over HTTP.
+Require all denied

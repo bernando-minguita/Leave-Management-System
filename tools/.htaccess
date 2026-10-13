@@ -1,0 +1,2 @@
+# CLI tooling is never served over HTTP.
+Require all denied

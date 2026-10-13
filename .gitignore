@@ -1,0 +1,30 @@
+# Runtime state - written by the app on every machine, never committed.
+/storage/logs/
+/storage/cache/
+/storage/exports/
+
+# Host credentials and API tokens (database password, SIMLedger bearer
+# token). setup.php / tools/install.php write this file on each machine -
+# see README > Configuration. Same rule as the patch pipeline: it NEVER
+# leaves this machine.
+/app/config/config.php
+
+# Environment overlay read via getenv() - same secret class as config.php.
+/.env
+
+# Per-machine editor / IDE state. (.vscode too: if you ever want to commit
+# VS Code settings deliberately, delete that one line.)
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# OS metadata - this is a Windows box, but the tree gets opened elsewhere too.
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Scratch files from ad-hoc checks (this machine's workspace only).
+/_*
+

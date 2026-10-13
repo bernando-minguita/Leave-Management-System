@@ -1,0 +1,35 @@
+# ---------------------------------------------------------------------------
+# LMS - Driver Leave & Vacation Management
+# Application root .htaccess
+#   * clean URLs through a front controller (index.php)
+#   * JSON gateway for /api/... (api.php)
+#   * direct HTTP access to application internals is blocked
+# Change "RewriteBase" if the application is deployed in another folder.
+# ---------------------------------------------------------------------------
+
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /lms/
+
+    # Application internals are never served over HTTP.
+    RewriteRule ^(app|database|storage|tools)(/|$) - [R=404,L]
+
+    # JSON API gateway:  /lms/api/leave/calendar  ->  api.php?p=leave/calendar
+    RewriteRule ^api/?$        api.php         [L,QSA]
+    RewriteRule ^api/(.+)$     api.php?p=$1    [L,QSA]
+
+    # Real files and folders (assets, login.php, logout.php, ...) pass through.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Everything else is handled by the front controller.
+    RewriteRule ^ index.php [L,QSA]
+</IfModule>
+
+<FilesMatch "\.(sql|log|md|lock|ini|csv)$">
+    Require all denied
+</FilesMatch>
