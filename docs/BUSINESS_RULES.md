@@ -323,6 +323,10 @@ Dashboard, reached from the shared **Dashboard** heading in the sidebar.
   not. `Pending` stays *Not Started* — it is the only one of the four still
   being waited on — and an application a **leave record** owns is left alone, as
   everywhere else.
+  The whole precedence — record against decision against dates, including what
+  a deleted, unlinked or re-linked record does to the application — is tabulated
+  in [Leave status model](#leave-status-model) under
+  [Leave progress: one table for every combination](#leave-progress-one-table-for-every-combination).
 - The **Leave / New Leave form carries an application search**: approved,
   not-started, unlinked applications for the selected driver, prefilled into
   only the fields you have left empty (same rules enforced server-side and on
@@ -840,6 +844,13 @@ the server rendered anyway.
   modal). They carry the same rounded pill and glyph as well, and the dialog
   is `modal-xl`, so seven columns of dates plus Status fit without wrapping
   the chip onto a second line.
+- **The counting contract sits outside this page** — the invariants these
+  numbers must hold (population, On Leave, Available, expected returns, exits,
+  one trip one event) and worked examples for a pending resignation, a planned
+  trip, an overdue return and a changed Last Working Date are tabulated under
+  [Counting invariants and worked examples](#counting-invariants-and-worked-examples);
+  who is *in* the population at all is defined once under
+  [The employment-population rule](#the-employment-population-rule).
 
 ### Settings
 
@@ -913,6 +924,54 @@ Leave **applications** carry two independent axes:
 | Approval decision (`status`) | `pending`, `approved`, `rejected`, `cancelled` |
 | Leave progress (`leave_status`) | `not_started`, `on_leave`, `returned`, `not_returned`, `closed` |
 
+### Leave progress: one table for every combination
+
+The two axes above are independent, but `leave_status` has exactly **one**
+owner at a time, chosen in strict precedence — derived on every page load by
+`Status::sync()`, never typed and never back-filled:
+
+1. **A linked record owns the column.** While `leave_records.leave_application_id`
+   points at the application, its status maps through `RECORD_STATUS_MAP`, both
+   sweeps skip the row, and the approval decision itself is locked.
+2. **No linked record → the decision sweep** (`closeRejectedOrCancelled()`):
+   rejected or cancelled reads `closed`; putting the decision back to pending or
+   approved reopens it — unless the date rule below is entitled to keep it
+   closed.
+3. **Still approved → the date sweep** (`closeExpiredNoReturn()`): a departure
+   type (Resignation / Terminated / Absconded) whose Last Working Date has
+   passed reads `closed`; moving the date back into the future returns it to
+   `not_started`.
+4. **Otherwise** the typed value stands — default `not_started`.
+
+| Decision | Linked record | Record status | → `leave_status` | Owner |
+|---|---|---|---|---|
+| pending | none | — | `not_started` | default |
+| approved, ordinary leave type | none | — | `not_started` | default |
+| approved, departure type, LWD missing / today / future | none | — | `not_started` | date rule (not yet past) |
+| approved, departure type, LWD before today | none | — | `closed` | date sweep |
+| rejected | none | — | `closed` | decision sweep |
+| cancelled | none | — | `closed` | decision sweep |
+| any | present | `planned` | `not_started` | `RECORD_STATUS_MAP` |
+| any | present | `on_leave` / `overdue` | `on_leave` | `RECORD_STATUS_MAP` |
+| any | present | `returned` | `returned` | `RECORD_STATUS_MAP` |
+| any | present | `not_returned` | `not_returned` | `RECORD_STATUS_MAP` |
+| any | present | `cancelled` | `not_started` | `RECORD_STATUS_MAP` |
+
+What each lifecycle event does to an application:
+
+- **The record is deleted** — the application is unlinked and re-derived on the
+  next load: an ordinary approved filing → `not_started`; an approved departure
+  whose last working day has passed → `closed`; a rejected or cancelled filing →
+  `closed`. Never a stale `returned` from a trip that no longer exists.
+- **The application is deleted** — the link column is `ON DELETE SET NULL`: the
+  leave **record survives** with its history and simply loses its origin.
+- **The link is cleared** (permissive edit of a legacy record) — the same as the
+  record being deleted, on the next sync.
+- **Re-linking** — creation demands an approved, `not_started`, unlinked
+  application (the browser, `validateLink()` and `POST /api/leave/create` all
+  agree); `linkError()` refuses an application whose progress has moved, and the
+  decision stays locked for as long as a record is linked.
+
 ### One record, three counting rules
 
 The same leave is counted three different ways, on purpose — a label should
@@ -949,6 +1008,89 @@ Two different events, never mixed in one KPI:
   population from the day after the last working date and appear in the monthly
   **departures** count: one headcount exit plus one departure event — never
   on-leave days, never counted twice.
+
+### The employment-population rule
+
+Every screen that counts drivers — both dashboards, both capacity modes, the
+pickers, the exports — asks the same question through **one helper**,
+`Driver::activeOnSql()`, so the denominators cannot part company. On any date *D*
+a driver is in the population when:
+
+```sql
+status = 'active'
+   OR (last_working_date IS NOT NULL AND last_working_date >= D)
+```
+
+1. **Active is counted.** A last working date on the row never removes anyone on
+   its own — only the status change does.
+2. **A deactivated driver with a Last Working Date is counted through and
+   including that date** and drops out the next calendar day. Ordinary leave
+   starts the day after (`leave_start = LWD + 1`), so there is no gap and no
+   overlap.
+3. **A deactivated driver with no date is excluded from every day** — a date-less
+   deactivation behaves exactly as before the column existed. This is the
+   defined exception, not an error to guess at.
+4. **Application decisions never change membership.** Pending, rejected or
+   cancelled departure filings leave the population untouched; even an approved
+   one only changes what the forecast *projects*, until the walk passes the
+   date.
+5. **The forecast walk applies departures the day after the Last Working
+   Date**, merging both sources — a departure filing with a date (approved *or*
+   pending: this is a forecast) and a driver-row deactivation — and keeping
+   **one row per driver, the earliest date**, so one person can never be
+   subtracted twice. Rejected and cancelled filings never enter the query.
+6. **One driver, one departure.** The monthly departures count and the headcount
+   drop are two views of this single event (see
+   [Exits vs absences](#exits-vs-absences) above), and the dashboard's *Exit*
+   override names the same moment.
+
+### Counting invariants and worked examples
+
+The forecast is the most calculation-sensitive code in the system. Six
+invariants pin it down; each is either asserted by the test suite today or
+stated here as the contract every change must keep.
+
+**The invariants** — on any day, under any filter set:
+
+1. **Population** — the denominator is [the employment-population rule](#the-employment-population-rule)
+   above; the Driver Dashboard totals equal `activeOnSql(D)` exactly
+   (`driver-dashboard-test`), and no leave-type filter can move it.
+2. **On Leave** — *unique* eligible drivers with a capacity-consuming absence
+   that day: a live record (`cancelled` and `not_returned` excluded; the
+   expected-return day itself still counts; `planned` counts from its leave
+   start) plus projected expectations — one driver counted once, however many
+   rows overlap.
+3. **Available** = population − On Leave for that day and those filters; never
+   negative; a planned trip subtracts exactly like a real one.
+4. **Expected returns** — returns still to happen only: a recorded arrival
+   excludes the driver, a `planned` record produces none, and a past-due return
+   is shown as **Overdue**, not as an expected return (the dashboard keeps
+   waiting for it — the two screens' comparison lines state both numbers).
+5. **Exits move headcount, never leave capacity** — a departure type carries no
+   expected return (the form hides it, the save drops it), so it can never be
+   projected as absence; the walk subtracts it the day after the Last Working
+   Date exactly once (earliest date wins across sources); rejected and
+   cancelled filings never subtract.
+6. **One trip, one event** — an application and its linked record can never both
+   move the numbers: the expectation query excludes any application that has a
+   record, and any whose trip is already covered by a live record of the same
+   driver (legacy rows included); a record's days come only from the record.
+
+**Worked examples** — one driver, four situations:
+
+| Situation | Counted as |
+|---|---|
+| **Overdue return.** Y away since 1 Oct, expected back 10 Oct, no arrival recorded; today is 12 Oct. | Still away: counts in On Leave, Available is down one, and it appears as **Overdue** — not as an expected return. The dashboard's *Expected Returns* keeps waiting for it until the return is recorded. |
+| **Pending resignation.** Z filed a Resignation with Last Working Date 15 Nov; the decision is still pending on 12 Nov. | In the population today (the row is still active) and counted in *Expected Resignations* now — pending counts alongside approved. If the filing still stands, the walk drops Z from Active on **16 Nov**, the day after. Reject it first and the next render shows no exit at all: nothing is persisted, every figure is recomputed per request. |
+| **Planned vacation.** P has a `planned` trip 5–8 Nov. | Unavailable 5 Nov – 7 Nov (leave start through the day before the expected return), On Leave with a *Planned* chip, a *Leave start* event on 5 Nov — and **no return event**: planned trips never enter Expected Returns. Active never moves. |
+| **Changed Last Working Date.** D was deactivated with 15 Nov on the row; the date is later corrected to 20 Nov. | In the population **on** that date and out the next day; the single exit event moves with the correction. A departure filing *and* a driver-row deactivation both naming dates still produce **one** exit — earliest date wins. Deactivated with **no** date at all: out of every day, no walk event. |
+
+Existing coverage: `capacity-plan-test` asserts the day boundary (in *on* the
+last working date, out the day after), the no-date deactivation, planned-trip
+subtraction, the returned and planned exclusions from Expected Returns, and the
+one-trip-one-event guards (`shown by its record instead — never twice`);
+`driver-dashboard-test` pins the totals to `activeOnSql()`; `leave-status-test`
+and `leave-link-test` hold the precedence table above.
 
 ### Closing a leave as Not Returned
 

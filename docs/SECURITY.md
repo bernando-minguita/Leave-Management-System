@@ -69,7 +69,7 @@ permissions are the **union across every role they hold**, read from
 
 | Group | Keys |
 |---|---|
-| Dashboard | `dashboard.view` |
+| Dashboard | `dashboard.view`, `dashboard.drivers` |
 | Address Book | `drivers.view`, `drivers.create`, `drivers.edit` *(file a change request)*, `drivers.master_correct` *(write master data directly)*, `drivers.change_request_approve`, `drivers.history.view`, `drivers.deactivate`, `drivers.delete`, `drivers.import`, `drivers.export` |
 | Leave & Vacation | `leave.view`, `leave.create`, `leave.edit`, `leave.cancel`, `leave.return`, `leave.delete` |
 | Reports | `reports.view`, `reports.export`, `reports.print`, `reports.capacity` |
@@ -81,9 +81,9 @@ permissions are the **union across every role they hold**, read from
 | Role | Name | Permissions | Intent |
 |---|---|---|---|
 | `admin` | Administrator | all (`*`) | Unrestricted, including users, roles and system settings |
-| `hr` | HR / Personnel | 18 | Maintains drivers and leave records; files and approves driver change requests, may correct directly; no settings, roles or system config |
-| `operations` | Operations | 10 | Operational visibility plus leave/return updates; read-only address book, but may **file** a driver change request |
-| `viewer` | Viewer / Management | 6 | Read-only visibility for managers; can export reports and read driver history, changes nothing |
+| `hr` | HR / Personnel | 20 | Maintains drivers and leave records; files and approves driver change requests, may correct directly; no settings, roles or system config |
+| `operations` | Operations | 12 | Operational visibility plus leave/return updates; read-only address book, but may **file** a driver change request |
+| `viewer` | Viewer / Management | 8 | Read-only visibility for managers; can export reports and read driver history, changes nothing |
 
 `leave.cancel` is **deliberately withheld** from Operations — grant it from
 Settings → Roles if an operations user needs it.
@@ -101,6 +101,52 @@ widen or narrow any role without a code change.
 > Actions column. View is tied to `leave.view` — the same permission that gates
 > the list itself — so anyone who can reach a page always has a way in, while
 > `leave.edit` / `leave.delete` remain independently enforced.
+
+### Operation matrix
+
+Every sensitive operation, the one permission that unlocks it, and the state a
+fresh install ships with. `✓` = granted, `–` = not granted (default grants come
+from `role_definitions()`; **every row can be widened or narrowed per role from
+Settings → Roles / Permissions with no code change**). *Enforced where* names
+the layers that refuse the request — the JSON API carries the same keys as the
+web routes and controllers that write sensitive data re-check the permission
+themselves, so hiding a button is never the security boundary. The last column
+is the `audit_logs.action` the operation writes; `—` means the operation is not
+itself logged (a page read, a download).
+
+| Operation | Permission | Admin | HR | Ops | Viewer | Enforced where | Audited as |
+|---|---|---|---|---|---|---|---|
+| Leave Dashboard | `dashboard.view` | ✓ | ✓ | ✓ | ✓ | route map (`GET /dashboard`) | — |
+| Driver Dashboard | `dashboard.drivers` | ✓ | ✓ | ✓ | ✓ | route map (`GET /driver-dashboard`) | — |
+| View drivers, profiles, leave history | `drivers.view` | ✓ | ✓ | ✓ | ✓ | route map + API (`drivers/search`, `drivers/detail`) | — |
+| Add a driver | `drivers.create` | ✓ | ✓ | – | – | route map | `driver-created` |
+| File a driver change request | `drivers.edit` | ✓ | ✓ | ✓ | – | route map (the queue takes **either** this key or the approver's) | `driver-change-requested` |
+| Correct master data directly | `drivers.master_correct` | ✓ | ✓ | – | – | route map **+** a second `require_permission()` in the controller; the SIMLedger sync API carries the same key | `driver-updated` (+ a Driver History row with the reason) |
+| Decide change requests | `drivers.change_request_approve` | ✓ | ✓ | – | – | route map (`approve` / `reject`) | `driver-change-approved`, reviewer recorded |
+| Deactivate / reactivate | `drivers.deactivate` | ✓ | ✓ | – | – | route map + API | `driver-deactivated` / `driver-activated` |
+| Delete drivers | `drivers.delete` | ✓ | – | – | – | route map (single and bulk) | `driver-deleted` |
+| Import the address book (CSV) | `drivers.import` | ✓ | ✓ | – | – | route map (`/drivers/import`, `/import`) | `drivers-imported` (mode + row counts) |
+| Export the address book | `drivers.export` | ✓ | ✓ | – | – | route map (`GET /drivers/export`) | — |
+| View leave records and applications | `leave.view` | ✓ | ✓ | ✓ | ✓ | route map + API | — |
+| Create leave / an application | `leave.create` | ✓ | ✓ | ✓ | – | route map + API (`leave/create`) | `leave-created`, `leave-application-created` |
+| Edit leave / an application | `leave.edit` | ✓ | ✓ | ✓ | – | route map + API (`leave/update`) | `leave-updated`, `leave-application-updated` |
+| Approve / reject / reset a decision | `leave.edit` | ✓ | ✓ | ✓ | – | route map (`POST …/status`); refused outright while a record is linked | `leave-application-status` |
+| Mark returned / close as Not Returned | `leave.return` | ✓ | ✓ | ✓ | – | route map + API (`mark-returned`, `not-returned`) | `driver-returned`, `leave-not-returned` |
+| Cancel a leave record | `leave.cancel` | ✓ | ✓ | **–** | – | route map + API (`leave/cancel`); withheld from Operations on purpose | `leave-cancelled` |
+| Delete leave records | `leave.delete` | ✓ | – | – | – | route map (single and bulk) | `leave-deleted`, `leave-bulk-deleted` |
+| Reopen a closure (Change Status) | `settings.system` | ✓ | – | – | – | route map (`POST /leave/change-status`) | `leave-status-changed` |
+| View the four reports | `reports.view` | ✓ | ✓ | ✓ | ✓ | route map | — |
+| Export CSV / Excel (`?export=`) | `reports.export` | ✓ | ✓ | ✓ | ✓ | an explicit `require_permission()` — a query string is invisible to the route map; the capacity drill's Excel demands the same key | — |
+| Driver Capacity Planning + drill | `reports.capacity` | ✓ | – | – | – | route map (page and API); the data-quality panel stays Administrator-only regardless | — |
+| Manage branches / agencies / leave types | `settings.branches` / `settings.agencies` / `settings.leave_types` | ✓ | – | – | – | route map, one key per screen | screen-named actions (e.g. `agency-created`, `agency-updated`) |
+| Manage users and administrator 2FA resets | `settings.users` | ✓ | – | – | – | route map (+ the two administrator 2FA actions) | `user-created`, `user-updated` |
+| Manage roles and their grants | `settings.roles` / `settings.permissions` | ✓ | – | – | – | route map (either key opens the page; the save asks what its kind needs) | `role-updated` |
+| System settings, backup / restore, demo data | `settings.system` | ✓ | – | – | – | route map (+ typing `RESTORE` to restore) | `settings-changed`, `database-restored`, `system-reset` |
+| View the audit log | `audit.view` | ✓ | ✓ | – | – | route map | — |
+
+The four shipped roles are seeds, not law: the matrix above is what
+`role_definitions()` grants on a fresh install, and the live grants live in
+`role_permissions`, readable and editable per role at Settings → Roles.
 
 ---
 
