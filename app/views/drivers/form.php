@@ -120,14 +120,35 @@ $heading = $isEdit ? 'Edit Driver' : 'Add Driver';
                           // stored, the label is shown, so renaming an option in
                           // Settings never invalidates an existing driver. ?>
                     <select class="form-select<?= $err('status') ?>" id="status" name="status">
-                        <?php foreach (\App\Models\Lookup::employmentStatuses() as $value => $label): ?>
+                        <?php $empStatuses = \App\Models\Lookup::employmentStatuses(); ?>
+                        <?php foreach ($empStatuses as $value => $label): ?>
                             <option value="<?= e($value) ?>"
                                 <?= $val('status', 'active') === $value ? 'selected' : '' ?>>
                                 <?= e($label) ?>
                             </option>
                         <?php endforeach; ?>
+                        <?php // A value the list no longer carries - removed from
+                              // Settings after this driver was filed - needs its
+                              // own option. Without one the browser selects the
+                              // FIRST option, and saving the form for any
+                              // unrelated reason silently rewrites the status. ?>
+                        <?php if ($val('status', 'active') !== ''
+                              && !array_key_exists($val('status', 'active'), $empStatuses)): ?>
+                            <option value="<?= e($val('status', 'active')) ?>" selected>
+                                <?= e(\App\Models\Lookup::employmentLabel($val('status', 'active'))) ?>
+                                — no longer in the list
+                            </option>
+                        <?php endif; ?>
                     </select>
                     <?= $errmsg('status') ?>
+                    <?php if ($val('status', 'active') !== ''
+                          && !array_key_exists($val('status', 'active'), $empStatuses)): ?>
+                        <div class="form-text text-warning-emphasis">
+                            This value is no longer in Settings &rarr; Employment
+                            status options. Pick a current one, or leave it as it
+                            is to keep the record unchanged.
+                        </div>
+                    <?php endif; ?>
                 </div>
 
                 <div class="col-md-4">
@@ -138,14 +159,34 @@ $heading = $isEdit ? 'Edit Driver' : 'Add Driver';
                     <select class="form-select<?= $err('operational_status') ?>"
                             id="operational_status" name="operational_status">
                         <option value="">— Not set —</option>
-                        <?php foreach (\App\Models\Lookup::operationalStatuses() as $value => $label): ?>
+                        <?php $opStatuses = \App\Models\Lookup::operationalStatuses(); ?>
+                        <?php foreach ($opStatuses as $value => $label): ?>
                             <option value="<?= e($value) ?>"
                                 <?= $val('operational_status') === $value ? 'selected' : '' ?>>
                                 <?= e($label) ?>
                             </option>
                         <?php endforeach; ?>
+                        <?php // Same rule as Employment Status above: a flag the
+                              // list no longer carries keeps its own option, or
+                              // the select falls back to "Not set" and the save
+                              // wipes the driver's flag. ?>
+                        <?php if ($val('operational_status') !== ''
+                              && !array_key_exists($val('operational_status'), $opStatuses)): ?>
+                            <option value="<?= e($val('operational_status')) ?>" selected>
+                                <?= e(\App\Models\Lookup::operationalLabel($val('operational_status'))) ?>
+                                — no longer in the list
+                            </option>
+                        <?php endif; ?>
                     </select>
                     <?= $errmsg('operational_status') ?>
+                    <?php if ($val('operational_status') !== ''
+                          && !array_key_exists($val('operational_status'), $opStatuses)): ?>
+                        <div class="form-text text-warning-emphasis">
+                            This flag is no longer in Settings &rarr; Operational
+                            status options. Pick a current one, or leave it as it
+                            is to keep the record unchanged.
+                        </div>
+                    <?php endif; ?>
                 </div>
 
                 <div class="col-md-4 d-none" id="lastWorkingGroup">

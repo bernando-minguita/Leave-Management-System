@@ -866,6 +866,18 @@ the server rendered anyway.
   overwrites an admin's tuned list. Destination Country must stay under 500
   characters, because `settings.setting_value` is `VARCHAR(500)` and the save
   truncates there.
+  All three accept **commas, line breaks or tabs** as separators, so a column
+  pasted out of a spreadsheet becomes one option per line instead of a single
+  malformed entry (a control character that survives the split is refused).
+  The screen shows **how many records hold each option**, and the save refuses
+  to remove a value any driver still holds — reassign those drivers first, or
+  keep the value. Destination is the deliberate exception: leave rows are
+  history, so a name they still use may be removed, those rows keep their own
+  value and stay filterable, and the save says how many it touched. A value
+  that left a driver list while a driver still held it is never rewritten
+  silently either: the driver form renders it as its own option marked *no
+  longer in the list* and the edit saves it back unchanged until somebody
+  chooses a current one.
 - **Users, roles and permissions** administration.
 - **Backup and restore**, sample/demo data reset and removal.
 - **Audit log** of every recorded action, under **Settings → Audit Log**

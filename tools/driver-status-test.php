@@ -11,6 +11,8 @@
  *      never lose "active" - every active-driver KPI counts that exact slug.
  *   3. Filtering, validation, export and CSV import all speak both lists.
  *   4. The screens show LABELS, never stored slugs.
+ *   5. A value drivers still hold cannot be removed from a list, and a driver
+ *      whose stored value left the list keeps it through an edit.
  */
 declare(strict_types=1);
 
@@ -171,6 +173,109 @@ $result = $saveSettings->invoke($controller, [
 ok(($result['ok'] ?? null) === true, 'the configured lists save as-is');
 ok(Lookup::setting('employment_statuses') === $before, 'the employment list is unchanged');
 ok(Lookup::setting('operational_statuses') === $opBefore, 'the operational list is unchanged');
+
+/* ------------------------ 6. removing a value drivers still hold -------- */
+
+echo "\n== removing an option drivers still hold ==\n";
+
+// Leftovers from an interrupted run would refuse the removals below for the
+// wrong reason, so clear them first.
+Database::run("DELETE FROM drivers WHERE badge_number LIKE 'ZZSTAT-%' OR badge_number LIKE 'ZZORPH-%'");
+
+$suffix = substr((string)time(), -6);
+$empFixture = 'zz_emp_' . $suffix;
+$opFixture  = 'zz_op_' . $suffix;
+
+$fixtureId = Database::insert('drivers', [
+    'badge_number'       => 'ZZSTAT-' . $suffix,
+    'driver_name'        => 'ZZ Status Fixture',
+    'iqama_number'       => '9' . $suffix,
+    'status'             => $empFixture,
+    'operational_status' => $opFixture,
+]);
+
+$empWithFixture = $before . ',' . $empFixture . '|ZZ Emp';
+$opWithFixture  = $opBefore . ',' . $opFixture . '|ZZ Op';
+
+$result = $saveSettings->invoke($controller, ['settings' => ['employment_statuses' => $empWithFixture]]);
+ok(($result['ok'] ?? null) === true, 'adding a value is allowed');
+
+$result = $saveSettings->invoke($controller, ['settings' => ['operational_statuses' => $opWithFixture]]);
+ok(($result['ok'] ?? null) === true, 'and so is adding an operational value');
+
+// The fixture now holds both. Removing either must be refused, by name.
+$result = $saveSettings->invoke($controller, ['settings' => ['employment_statuses' => $before]]);
+ok(($result['ok'] ?? null) === false && str_contains((string)($result['message'] ?? ''), $empFixture),
+    'an employment value a driver still holds cannot be removed');
+ok(str_contains((string)($result['message'] ?? ''), 'still use'), 'and the message says why');
+
+$result = $saveSettings->invoke($controller, ['settings' => ['operational_statuses' => $opBefore]]);
+ok(($result['ok'] ?? null) === false && str_contains((string)($result['message'] ?? ''), $opFixture),
+    'nor an operational one');
+ok(Lookup::setting('operational_statuses') === $opWithFixture, 'the refused save wrote nothing');
+
+// Reassign (delete the fixture) and the same removal goes through.
+Database::run('DELETE FROM drivers WHERE id = ?', [$fixtureId]);
+
+$result = $saveSettings->invoke($controller, ['settings' => [
+    'employment_statuses'  => $before,
+    'operational_statuses' => $opBefore,
+]]);
+ok(($result['ok'] ?? null) === true, 'once nobody holds them, both removals are allowed');
+ok(Lookup::setting('employment_statuses') === $before && Lookup::setting('operational_statuses') === $opBefore,
+    'and the lists are back to what they were');
+
+/* --------------- 7. a stored value the list no longer carries ----------- */
+
+echo "\n== a value the list no longer carries ==\n";
+
+$orphanEmp = 'zz_gone_' . $suffix;
+$orphanOp  = 'zz_gone_op_' . $suffix;
+
+$orphanId = Database::insert('drivers', [
+    'badge_number'       => 'ZZORPH-' . $suffix,
+    'driver_name'        => 'ZZ Orphan Fixture',
+    'iqama_number'       => '8' . $suffix,
+    'status'             => $orphanEmp,
+    'operational_status' => $orphanOp,
+]);
+
+$validate = new ReflectionMethod(\App\Controllers\DriverController::class, 'validate');
+$validate->setAccessible(true);
+$driverController = new \App\Controllers\DriverController();
+
+$input = [
+    'badge_number'       => 'ZZORPH-' . $suffix,
+    'driver_name'        => 'ZZ Orphan Fixture',
+    'iqama_number'       => '8' . $suffix,
+    'status'             => $orphanEmp,
+    'operational_status' => $orphanOp,
+];
+
+// The silent failure this guards: with no option to match, the browser submits
+// the FIRST option and an unrelated edit rewrites the status (or wipes the
+// operational flag), because validation refused the driver's own value.
+$v = $validate->invoke($driverController, $input, $orphanId);
+ok($v->passes(), 'an edit saves the value the driver already stores');
+
+$v = $validate->invoke($driverController, $input, null);
+ok(!$v->passes(), 'a NEW driver may still not use a value the list does not offer');
+
+Database::run('DELETE FROM drivers WHERE id = ?', [$orphanId]);
+
+$formSrc = (string) file_get_contents(dirname(__DIR__) . '/app/views/drivers/form.php');
+ok(substr_count($formSrc, 'no longer in the list') === 2,
+    'both selects render a stale value as its own option');
+ok(str_contains($formSrc, "!array_key_exists(\$val('status', 'active'), \$empStatuses)"),
+    'the employment select checks the stored value against the list');
+ok(str_contains($formSrc, "!array_key_exists(\$val('operational_status'), \$opStatuses)"),
+    'the operational select does too');
+
+$settingsSrc = (string) file_get_contents(dirname(__DIR__) . '/app/controllers/SettingsController.php');
+ok(str_contains($settingsSrc, 'function optionListUsage(): array'), 'usage counts exist on the controller');
+ok(str_contains($settingsSrc, 'Reassign those drivers first'), 'and feed the refusal');
+$systemSrc = (string) file_get_contents(dirname(__DIR__) . '/app/views/settings/system.php');
+ok(str_contains($systemSrc, 'In use by records:'), 'the screen shows them beside each list');
 
 /* ------------------------------------------------- 6. the screens ------ */
 

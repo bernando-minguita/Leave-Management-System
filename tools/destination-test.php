@@ -175,6 +175,78 @@ ok(!str_contains($js, "fillIfEmpty('destination'"),
 ok(str_contains($js, 'new Option(String(value), String(value))'),
     'an unknown country is added rather than discarded');
 
+/* ----------------------------- 6. pasted lists ------------------------- */
+
+echo "\n== pasted lists ==\n";
+
+$errors = [];
+$pasted = Lookup::parsePlainList("Saudi Arabia\nIndia\r\nQatar", $errors);
+ok($pasted === ['Saudi Arabia', 'India', 'Qatar'] && $errors === [],
+    'a column pasted with line breaks becomes one country per line');
+
+$errors = [];
+$pasted = Lookup::parsePlainList("Saudi Arabia\tIndia", $errors);
+ok($pasted === ['Saudi Arabia', 'India'], 'a pasted row splits on tabs too');
+
+$errors = [];
+$bad = Lookup::parsePlainList("Saudi\x0BArabia", $errors);
+ok($bad === [] && $errors !== [], 'a control character inside a name is refused');
+
+$errors = [];
+$pairs = Lookup::parseOptionListString("active|Active\ninactive|Inactive", $errors);
+ok($pairs === ['active' => 'Active', 'inactive' => 'Inactive'],
+    'value|Label pairs may be pasted one per line as well');
+
+/* ------------------- 7. removing a country still in use ---------------- */
+
+echo "\n== removing a country leave rows still use ==\n";
+
+$saveSettings = new ReflectionMethod(SettingsController::class, 'saveSettings');
+$saveSettings->setAccessible(true);
+$settingsController = new SettingsController();
+$original = (string) Lookup::setting('destination_countries');
+
+$result = $saveSettings->invoke($settingsController, ['settings' => ['destination_countries' => $original . ',ZZ Testland']]);
+ok(($result['ok'] ?? null) === true, 'a country nothing uses can be added');
+
+$result = $saveSettings->invoke($settingsController, ['settings' => ['destination_countries' => $original]]);
+ok(($result['ok'] ?? null) === true && Lookup::setting('destination_countries') === $original,
+    'and removed again with no complaint');
+
+// A country real leave rows carry: the removal is ALLOWED, because history
+// keeps its own value - but the save says so rather than staying silent.
+$used = null;
+
+foreach (Lookup::destinationCountries() as $country) {
+    $rows = (int)\App\Core\Database::scalar(
+        'SELECT COUNT(*) FROM leave_records WHERE LOWER(destination) = ?',
+        [mb_strtolower($country)]
+    );
+
+    if ($rows > 0) {
+        $used = $country;
+        break;
+    }
+}
+
+if ($used !== null) {
+    $reduced = implode(',', array_values(array_filter(
+        Lookup::destinationCountries(),
+        static fn (string $c): bool => mb_strtolower($c) !== mb_strtolower((string)$used)
+    )));
+
+    $result = $saveSettings->invoke($settingsController, ['settings' => ['destination_countries' => $reduced]]);
+    ok(($result['ok'] ?? null) === true, 'a country leave rows still use can be removed');
+    ok(str_contains((string)($result['message'] ?? ''), 'keep their value'),
+        'and the save reports that those rows keep it');
+
+    $result = $saveSettings->invoke($settingsController, ['settings' => ['destination_countries' => $original]]);
+    ok(($result['ok'] ?? null) === true && Lookup::setting('destination_countries') === $original,
+        'the original list is restored');
+} else {
+    echo "  (skipped: no configured country is used by a leave row yet)\n";
+}
+
 /* ---------------------------------------- 6. the rename ---------------- */
 
 echo "\n== every screen says Destination Country ==\n";

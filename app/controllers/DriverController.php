@@ -905,8 +905,19 @@ final class DriverController
             ->dateNotBefore('last_working_date', 'Last working date', 'joining_date', 'joining date')
             // Both status lists come from Settings (value|Label). Validator::in()
             // accepts an empty value, so Operational Status may stay unset.
-            ->in('status', 'Employment status', array_keys(Lookup::employmentStatuses()))
-            ->in('operational_status', 'Operational status', array_keys(Lookup::operationalStatuses()));
+            //
+            // THE DRIVER'S OWN STORED VALUE IS ALWAYS ACCEPTED. Removing an
+            // option in Settings must not make the drivers still holding it
+            // unsavable - and it must never be silently rewritten either. The
+            // form renders a stale value as its own option (views/drivers/
+            // form.php) and this is what lets that choice be saved back
+            // untouched. Settings now refuses such a removal while drivers
+            // still hold the value; this stays as the second line of defence
+            // for rows that predate that rule.
+            ->in('status', 'Employment status', $this->acceptableStatuses($exceptId, 'status',
+                array_keys(Lookup::employmentStatuses())))
+            ->in('operational_status', 'Operational status', $this->acceptableStatuses($exceptId, 'operational_status',
+                array_keys(Lookup::operationalStatuses())));
 
         // Agency / branch must exist when supplied (spec section 29).
         if (($input['agency_id'] ?? '') !== '') {
@@ -927,6 +938,42 @@ final class DriverController
         }
 
         return $v;
+    }
+
+    /**
+     * The values a status field may hold: the Settings list, plus - on an edit -
+     * whatever that driver already stores.
+     *
+     * WHY. Settings refuses removing an option that drivers still hold, but a
+     * list can also be edited before this rule existed, or by a direct write to
+     * the settings table. Without this, such a driver could not be saved at all
+     * (their own value fails the list check), and the browser would otherwise
+     * submit the FIRST option in the select - silently rewriting the status, or
+     * wiping an operational flag to NULL. Create is unaffected: a new driver
+     * may only choose a value the list actually offers.
+     *
+     * @param array<int, string> $allowed
+     * @return array<int, string>
+     */
+    private function acceptableStatuses(?int $exceptId, string $field, array $allowed): array
+    {
+        if ($exceptId === null) {
+            return $allowed;
+        }
+
+        $existing = Driver::find($exceptId);
+
+        if ($existing === null) {
+            return $allowed;
+        }
+
+        $stored = (string)($existing[$field] ?? '');
+
+        if ($stored !== '' && !in_array($stored, $allowed, true)) {
+            $allowed[] = $stored;
+        }
+
+        return $allowed;
     }
 
     /**

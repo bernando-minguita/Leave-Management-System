@@ -9,6 +9,7 @@
  */
 $settings = $settings ?? [];
 $errors   = $errors ?? [];
+$usage    = $usage ?? [];
 ?>
 
 <?= View::partial('partials/page-head', [
@@ -81,7 +82,9 @@ $errors   = $errors ?? [];
                             <div class="form-text">
                                 Key: <code><?= e($row['setting_key']) ?></code> ·
                                 <?php if ($isPlainList): ?>
-                                    Comma-separated country names, e.g.
+                                    Country names, separated by commas <em>or line
+                                    breaks</em> (pasting a column out of a
+                                    spreadsheet works), e.g.
                                     <code>Saudi Arabia,India,Philippines</code>.
                                     They fill <strong>Destination Country</strong>
                                     on both leave forms and the name itself is what
@@ -89,16 +92,40 @@ $errors   = $errors ?? [];
                                     first on every form and is not part of this
                                     list. A setting holds 500 characters - widen
                                     the column before going much past ~40.
+                                    Removing a name leave rows still use is
+                                    allowed: those rows keep their value and stay
+                                    filterable.
                                 <?php else: ?>
-                                    Pairs of <code>value|Label</code> separated by commas;
-                                    the value is what drivers store, the label what the
-                                    Address Book shows.
+                                    Pairs of <code>value|Label</code>, separated by
+                                    commas <em>or line breaks</em>; the value is what
+                                    drivers store, the label what the Address Book
+                                    shows. An option a driver still holds cannot be
+                                    removed - reassign those drivers first.
                                     <?php if ($row['setting_key'] === 'employment_statuses'): ?>
                                         The value <code>active</code> must stay in the list -
                                         every active-driver total counts it.
                                     <?php endif; ?>
                                 <?php endif; ?>
                             </div>
+                            <?php // What a removal would cost: how many records
+                                  // hold each configured option. The ones at 0
+                                  // are the safe ones to drop. ?>
+                            <?php $summary = (array)($usage[$row['setting_key']] ?? []); ?>
+                            <?php if ((array)($summary['rows'] ?? []) !== []): ?>
+                                <div class="form-text">
+                                    <span class="text-body-secondary">In use by records:</span>
+                                    <?php foreach (array_slice((array)$summary['rows'], 0, 8) as $i => $entry): ?>
+                                        <?= $i > 0 ? '·' : '' ?>
+                                        <span class="<?= (int)$entry['count'] === 0 ? 'text-body-secondary' : 'fw-semibold' ?>"><?= e($entry['label']) ?> <?= (int)$entry['count'] ?></span>
+                                    <?php endforeach; ?>
+                                    <?php if (count((array)$summary['rows']) > 8): ?>
+                                        · and <?= count((array)$summary['rows']) - 8 ?> more
+                                    <?php endif; ?>
+                                    <?php if ((int)($summary['unused'] ?? 0) > 0): ?>
+                                        · <span class="text-body-secondary"><?= (int)$summary['unused'] ?> unused</span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
                         <?php else: ?>
                             <input type="text" class="form-control"
                                    id="set_<?= e($row['setting_key']) ?>"

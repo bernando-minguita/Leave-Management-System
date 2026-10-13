@@ -666,9 +666,17 @@ final class SettingsController
         // render a field for them, so guarantee they are on file.
         $this->ensureDefaultSettings();
 
+        // Seeding writes rows this request then reads back through Lookup
+        // (the option-list usage counts): drop any cache an earlier read left.
+        \App\Models\Lookup::forgetSettings();
+
         View::render('settings/system', [
             'settings' => Database::all('SELECT * FROM settings ORDER BY group_name, setting_key'),
             'errors'   => $this->flashErrors(),
+            // How many records hold each configured option. Shown beside the
+            // three lists, because removing an option is the one edit on this
+            // screen that can strand data - see optionListUsage().
+            'usage'    => $this->optionListSummary(),
         ], 'System Settings', 'settings-system', [
             ['label' => 'Settings'],
             ['label' => 'System Settings'],
@@ -1003,6 +1011,85 @@ final class SettingsController
             }
         }
 
+        // A VALUE STILL IN USE MUST NOT VANISH SILENTLY. Removing an option
+        // orphans every record holding it: the driver form used to fall back to
+        // its first option and rewrite the driver. So the two driver lists
+        // REFUSE the removal while any driver still holds the value.
+        // Destinations are historical - leave rows keep their own value and the
+        // forms add it back as its own option - so those removals are allowed
+        // and reported instead.
+        $notes = [];
+
+        if ($listErrors === []) {
+            $usage = $this->optionListUsage();
+
+            foreach ($listKeys as $listKey) {
+                if (!array_key_exists($listKey, $values)) {
+                    continue;
+                }
+
+                $plain   = $listKey === 'destination_countries';
+                $current = $plain
+                    ? \App\Models\Lookup::destinationCountries()
+                    : array_keys($listKey === 'employment_statuses'
+                        ? \App\Models\Lookup::employmentStatuses()
+                        : \App\Models\Lookup::operationalStatuses());
+
+                $kept = $plain
+                    ? \App\Models\Lookup::parsePlainList((string)$values[$listKey])
+                    : array_keys(\App\Models\Lookup::parseOptionListString((string)$values[$listKey]));
+
+                // Countries match case-insensitively, the way the parser
+                // dedupes them: retyping "saudi arabia" is not a removal.
+                $keptKeys = [];
+                foreach ($kept as $keptValue) {
+                    $keptKeys[$plain ? mb_strtolower((string)$keptValue) : (string)$keptValue] = true;
+                }
+
+                $dropped = [];
+                $records = 0;
+
+                foreach ($current as $value) {
+                    $key = $plain ? mb_strtolower((string)$value) : (string)$value;
+
+                    if (isset($keptKeys[$key])) {
+                        continue;
+                    }
+
+                    $count = (int)($usage[$listKey][$key] ?? 0);
+
+                    if ($count > 0) {
+                        $dropped[] = $value;
+                        $records  += $count;
+                    }
+                }
+
+                if ($dropped === []) {
+                    continue;
+                }
+
+                if ($plain) {
+                    $notes[] = 'Removed ' . count($dropped) . ' country name(s) still'
+                        . ' used by ' . $records . ' leave row(s) - those rows keep'
+                        . ' their value and stay filterable.';
+                    continue;
+                }
+
+                $shown = implode(', ', array_map(
+                    static fn ($v): string => '"' . $v . '"',
+                    array_slice($dropped, 0, 3)
+                ));
+
+                if (count($dropped) > 3) {
+                    $shown .= ' and ' . (count($dropped) - 3) . ' more';
+                }
+
+                $listErrors[$listKey] = 'Cannot remove ' . $shown . ' - ' . $records
+                    . ' driver(s) still use it. Reassign those drivers first, or'
+                    . ' keep the value in the list.';
+            }
+        }
+
         if ($listErrors !== []) {
             return [
                 'ok'      => false,
@@ -1049,7 +1136,114 @@ final class SettingsController
             audit_log('settings-changed', 'settings', null, null, $changed);
         }
 
-        return ['ok' => true, 'message' => 'Settings saved.'];
+        // The removal guard above reads the lists through Lookup, which memoises
+        // them for the request: without this flush, a save followed by another
+        // read in the same request would still compare against the old lists.
+        \App\Models\Lookup::forgetSettings();
+
+        return [
+            'ok'      => true,
+            'message' => trim('Settings saved. ' . implode(' ', $notes)),
+        ];
+    }
+
+    /**
+     * How many records hold each configured option, for the three lists.
+     *
+     * WHY. Removing an option is the only edit on this screen that can strand
+     * data: the driver keeps a value the list no longer offers. The counts are
+     * shown beside each list and read back on save, so a removal of a value
+     * still in use is refused for the two driver lists and reported for
+     * destinations (whose rows are history and keep their value).
+     *
+     * Destination keys come back lowercased: a country is stored under the name
+     * it was picked with, and the list dedupes case-insensitively.
+     *
+     * @return array<string, array<string, int>> setting key => value => count
+     */
+    private function optionListUsage(): array
+    {
+        $collect = static function (string $sql): array {
+            $out = [];
+
+            foreach (Database::all($sql) as $row) {
+                $key = (string)$row['k'];
+
+                if ($key !== '') {
+                    $out[$key] = (int)$row['n'];
+                }
+            }
+
+            return $out;
+        };
+
+        return [
+            'employment_statuses' => $collect(
+                'SELECT status AS k, COUNT(*) AS n FROM drivers
+                  WHERE status IS NOT NULL AND status <> "" GROUP BY status'
+            ),
+            'operational_statuses' => $collect(
+                'SELECT operational_status AS k, COUNT(*) AS n FROM drivers
+                  WHERE operational_status IS NOT NULL AND operational_status <> ""
+                  GROUP BY operational_status'
+            ),
+            'destination_countries' => $collect(
+                'SELECT LOWER(destination) AS k, COUNT(*) AS n FROM (
+                     SELECT destination FROM leave_records
+                     UNION ALL
+                     SELECT destination FROM leave_applications
+                 ) d
+                 WHERE destination IS NOT NULL AND destination <> ""
+                 GROUP BY LOWER(destination)'
+            ),
+        ];
+    }
+
+    /**
+     * optionListUsage() shaped for the screen: one row per configured option, in
+     * list order, so a reader can see what a removal would cost.
+     *
+     * @return array<string, array{rows: array<int, array{label: string, count: int}>, in_use: int, unused: int}>
+     */
+    private function optionListSummary(): array
+    {
+        $usage = $this->optionListUsage();
+
+        $build = static function (array $labels, array $counts, bool $lower): array {
+            $rows  = [];
+            $inUse = 0;
+
+            foreach ($labels as $label) {
+                $label = (string)$label;
+                $count = (int)($counts[$lower ? mb_strtolower($label) : $label] ?? 0);
+
+                if ($count > 0) {
+                    $inUse++;
+                }
+
+                $rows[] = ['label' => $label, 'count' => $count];
+            }
+
+            return ['rows' => $rows, 'in_use' => $inUse, 'unused' => count($rows) - $inUse];
+        };
+
+        return [
+            'employment_statuses' => $build(
+                array_values(\App\Models\Lookup::employmentStatuses()),
+                $usage['employment_statuses'],
+                false
+            ),
+            'operational_statuses' => $build(
+                array_values(\App\Models\Lookup::operationalStatuses()),
+                $usage['operational_statuses'],
+                false
+            ),
+            'destination_countries' => $build(
+                \App\Models\Lookup::destinationCountries(),
+                $usage['destination_countries'],
+                true
+            ),
+        ];
     }
 
     /* --------------------------------------------------- save dispatch -- */

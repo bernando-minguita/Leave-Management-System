@@ -136,6 +136,9 @@ final class Lookup
         return $pairs;
     }
 
+    /** @var array<string, string>|null Memoised for the request; see forgetSettings(). */
+    private static ?array $settingsCache = null;
+
     /**
      * All settings as key => value (cached for the request).
      *
@@ -143,22 +146,35 @@ final class Lookup
      */
     public static function settings(): array
     {
-        static $cache = null;
-
-        if ($cache !== null) {
-            return $cache;
+        if (self::$settingsCache !== null) {
+            return self::$settingsCache;
         }
 
-        $cache = [];
+        self::$settingsCache = [];
+
         try {
             foreach (Database::all('SELECT setting_key, setting_value FROM settings') as $row) {
-                $cache[(string)$row['setting_key']] = (string)$row['setting_value'];
+                self::$settingsCache[(string)$row['setting_key']] = (string)$row['setting_value'];
             }
         } catch (\Throwable $ex) {
             log_fatal('settings load failed: ' . $ex->getMessage());
         }
 
-        return $cache;
+        return self::$settingsCache;
+    }
+
+    /**
+     * Drop the memoised settings so the next read hits the database.
+     *
+     * WHY. The option-list guard in SettingsController reads the CURRENT lists
+     * through this class, and a save writes them in the same request. Without
+     * this, a save followed by a read would still answer from the cache - which
+     * is exactly the comparison that decides whether a removal is allowed.
+     * Mirrors forget_permissions().
+     */
+    public static function forgetSettings(): void
+    {
+        self::$settingsCache = null;
     }
 
     public static function setting(string $key, string $default = ''): string
@@ -220,11 +236,21 @@ final class Lookup
         $seen   = [];
         $lineNo = 0;
 
-        foreach (explode(',', $raw) as $chunk) {
+        // Commas AND line breaks (or tabs) separate: pasting a column out of a
+        // spreadsheet is one option per line, and treating the whole paste as a
+        // single chunk would turn it into one malformed entry.
+        foreach (preg_split('/[\r\n\t,]+/', $raw) ?: [] as $chunk) {
             $lineNo++;
             $chunk = trim($chunk);
             if ($chunk === '') {
                 continue; // trailing comma / spacing noise
+            }
+
+            // A control character that survived the split was never intended:
+            // refuse it rather than store it inside a slug or a label.
+            if (preg_match('/[\x00-\x1F\x7F]/', $chunk)) {
+                $errors[] = 'Option ' . $lineNo . ' contains a control character - check what was pasted.';
+                continue;
             }
 
             if (str_contains($chunk, '|')) {
@@ -282,10 +308,19 @@ final class Lookup
         $out    = [];
         $seen   = [];
 
-        foreach (explode(',', $raw) as $part) {
+        // The same separators as the pairs parser: commas, line breaks and
+        // tabs. A column pasted out of a spreadsheet is one country per line,
+        // and it used to be swallowed as a single name with newlines inside it.
+        foreach (preg_split('/[\r\n\t,]+/', $raw) ?: [] as $part) {
             $name = trim($part);
 
             if ($name === '') {
+                continue;
+            }
+
+            if (preg_match('/[\x00-\x1F\x7F]/', $name)) {
+                $errors[] = '"' . mb_substr($name, 0, 30) . '" contains a control'
+                    . ' character - check what was pasted.';
                 continue;
             }
 
